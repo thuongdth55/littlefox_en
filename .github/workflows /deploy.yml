@@ -1,0 +1,44 @@
+name: Deploy PWA to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Inject FIREBASE_URL secret + build id
+        env:
+          FIREBASE_URL: ${{ secrets.FIREBASE_URL }}
+        run: |
+          if [ -z "$FIREBASE_URL" ]; then
+            echo "::error::Chưa có secret FIREBASE_URL (Settings → Secrets and variables → Actions)"
+            exit 1
+          fi
+          sed -i "s|__FIREBASE_URL__|${FIREBASE_URL}|g" public/config.js
+          sed -i "s|__BUILD__|${GITHUB_SHA}|g" public/sw.js
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
