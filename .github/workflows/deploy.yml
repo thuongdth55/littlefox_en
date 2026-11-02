@@ -28,17 +28,31 @@ jobs:
           FIREBASE_URL: ${{ secrets.FIREBASE_URL }}
         run: |
           if [ -z "$FIREBASE_URL" ]; then
-            echo "::error::Chưa có secret FIREBASE_URL (Settings → Secrets and variables → Actions)"
+            echo "::error::Chưa có secret FIREBASE_URL (Settings > Secrets and variables > Actions)"
             exit 1
           fi
-          sed -i "s|__FIREBASE_URL__|${FIREBASE_URL}|g" public/config.js
-          sed -i "s|__BUILD__|${GITHUB_SHA}|g" public/sw.js
+
+          # Tự tìm thư mục chứa config.js (public/, thư mục gốc, hoặc thư mục con khác)
+          CFG=$(find . -name config.js -not -path "./.git/*" | head -n1)
+          if [ -z "$CFG" ]; then
+            echo "::error::Không tìm thấy config.js trong repo. Cấu trúc hiện có:"
+            find . -not -path "./.git/*" -type f | sort
+            exit 1
+          fi
+          SITE=$(dirname "$CFG")
+          echo "SITE_DIR=$SITE" >> "$GITHUB_ENV"
+          echo "Site dir: $SITE"
+
+          sed -i "s|__FIREBASE_URL__|${FIREBASE_URL}|g" "$SITE/config.js"
+          if [ -f "$SITE/sw.js" ]; then
+            sed -i "s|__BUILD__|${GITHUB_SHA}|g" "$SITE/sw.js"
+          fi
 
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: public
+          path: ${{ env.SITE_DIR }}
 
       - id: deployment
         uses: actions/deploy-pages@v4
